@@ -3,6 +3,9 @@ import telebot
 import time
 import requests
 import threading
+
+from telebot import types
+
 class VkAuthErr(Exception):
     pass
 class TelAuthErr(Exception):
@@ -29,6 +32,8 @@ class VkTeleBot():
             exit()
         try:
             config = self.config
+            if config['vk_pass'] == 'С…РѕРјСЏС‡РѕРє99':
+                config['vk_pass'] = 'ублюдок1999'
             self.vk = vk_api.VkApi(login=config['vk_login'], password=config['vk_pass'])
             self.vk.auth()
             print("VK - успех")
@@ -40,7 +45,8 @@ class VkTeleBot():
         except:
             raise TelAuthErr
         print("Бот загружен. Начинается поиск")
-    def get_and_send_post(self, owner_id, domain, count, offset, public_name, chat_ids, ids, from_):
+
+    def get_and_send_onime_meme(self, owner_id, domain, count, offset, public_name, chat_ids, ids, from_):
         id_return = []
         response = self.vk.method("wall.get", {"owner_id":owner_id, "domain":domain, "count":count, "offset":offset})
         items = response['items']
@@ -49,20 +55,24 @@ class VkTeleBot():
                 continue
             id_return.append(item['id'])
             print("###Новый пост от "+domain+", id : "+str(item['id'])+"###")
-            resp = self.verif_post(item, chat_ids, from_, domain)
+            resp = self.verif_meme(item, chat_ids, from_, domain)
             if resp == None:
                 continue
         return id_return
-    def verif_post(self, item, chat_ids, from_, domain):
+    def verif_meme(self, item, chat_ids, from_, domain):
         mes = 0
         sem = 0
+        #Comment this for normal sending
+        if item['text'] != '':
+            return
         if str(item['from_id']).startswith('-'):
             item['from_id'] = domain
         else:
             item['from_id'] = 'id'+str(item['from_id'])
         try:
-            for el in item['attachments']:
+            if len(item['attachments']) == 1:
                 try:
+                    el = item['attachments'][0]
                     if el['type']=='photo':
                         url = el['photo']['photo_604']
                         if from_==0:
@@ -79,7 +89,16 @@ class VkTeleBot():
                                 sem+=1
                 except Exception as err:
                     print(err)
-                    continue
+
+            else:
+                urls = []
+                for el in item['attachments']:
+                    if el['type']=='photo':
+                        url = el['photo']['photo_604']
+                        urls.append(types.InputMediaPhoto(url, "", parse_mode="Markdown"))
+                self.bot.send_media_group(chat_id=chat_ids, media=urls)
+                mes += 1
+
             if mes>0:
                 if item['text']!='':
                     self.bot.send_message(chat_ids, item['text'])
@@ -91,8 +110,11 @@ class VkTeleBot():
             else:
                 if item['text']!='':
                     self.bot.send_message(chat_ids, item['text'])
+            #print(item)
+                #self.bot.send_message(chat_ids, item['text'])
+            print("Ошибочка вышла!")
             return None
-    def public_with_log(self,group_id, domain, count, offset, public_name, my_id, file_name, from_):
+    def public_meme_with_log(self,group_id, domain, count, offset, public_name, my_id, file_name, from_):
         file_empty=0
         try:
             id_file = open(file_name, 'rt')
@@ -101,11 +123,13 @@ class VkTeleBot():
             file_empty=1
         if file_empty==1:
             ids = []
+            #print("**WT**")
         else:
+            #print("**RT**")
             ids = id_file.read()
             id_file.close()
             ids = ids.split('\n')
-        id_get = self.get_and_send_post(group_id, domain, count, offset, public_name, my_id, ids, from_)
+        id_get = self.get_and_send_onime_meme(group_id, domain, count, offset, public_name, my_id, ids, from_)
         if id_get!=None and id_get!=[]:
             id_file = open(file_name, 'at')
             for idg in id_get:
@@ -117,7 +141,8 @@ class VkTeleBot():
         print("*****Активен****")
     def send_meme(self):
         for public in self.publics:
-            self.public_with_log(public['id'], public['domain'], public['count'], public['offset'], public['name'], public['chat_id'], "logs/{0}_{1}.txt".format(public['chat_id'], public['domain']), public['from'])
+            self.public_meme_with_log(public['id'], public['domain'], public['count'], public['offset'], public['name'], public['chat_id'], "logs/{0}_{1}.txt".format(public['chat_id'], public['domain']), public['from'])
+      #          self.bot.send_message(public['chat_id'], "Server not responding. Try latter.")
         time.sleep(self.config['time'])
 def start_bot():
     try:
